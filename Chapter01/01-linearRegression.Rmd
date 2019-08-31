@@ -1,0 +1,216 @@
+---
+title: "Notes of ISLR"
+author: "Varun Khanna"
+date: "30 August 2018"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+papersize: a4
+subtitle: 'Chapter 1: Linear Regression'
+fontsize: 11pt
+---
+
+###Loading Libraries
+```{r}
+LoadLibraries <- 
+  function(){
+    library("MASS")
+    library("ISLR")
+    library("car")
+    print("The libraries have been loaded")
+  }
+#loading the libraries
+LoadLibraries()
+```
+
+###Reading in the Data
+```{r}
+
+#Reading the Advertising Dataset available on www.statlearning.com
+adv_data <- read.csv("Advertising.csv")
+
+#Simple Linear Regression 
+#Loading the data from the Mass package
+fix("Boston")
+colnames(Boston)
+```
+
+
+### Fitting in the basic LM model
+```{r}
+
+#simple linear model with one predictor
+lm.fit = lm(medv ~ lstat, data = Boston)
+
+#we can also attach the column names and the run without the data param.
+attach(Boston)
+lm.fit <- lm(medv ~ lstat)
+
+#detailed info about the model
+summary(lm.fit)
+
+```
+
+
+### Plotting the model
+
+```{r}
+#getting the confidence intervals for the coefficient estm.
+confint(lm.fit)
+
+#predict() can be used to produce CI and PI 
+#PI will be wider than the CI as the include the irreducible errors.
+predict(lm.fit, data.frame (lstat= c(5,10,15)), interval = "prediction")
+
+#plotting the medv vs lstat (median inc. vs % of households in lower inc.)
+plot(lstat, medv)
+abline(lm.fit)
+
+#There is some evidence for non-linearity in the relationship between lstat and medv. 
+#We will explore this issue later in this lab.
+
+#For now, lets focus on improving the plot that we created above. 
+abline(lm.fit, lwd = 3)
+abline(lm.fit, lwd = 3, col = "red")
+plot(lstat, medv, pch = 20)
+plot(lstat, medv, pch = "+")
+abline(lm.fit, lwd = 3, col = "red")
+#all the symbols that are there in the plot func. through pch=""
+plot(1:20, 1:20, pch = 1:20)
+```
+
+
+### Plotting the 4 diagnostic plots
+
+```{r}
+par(mfrow = c(2,2))
+plot(lm.fit)
+```
+
+### Leverage statistics plots
+These are used when there is some evidence of some non-linearity in the data as we can see in the above plots.
+
+Leverage Statistics is defined as follows:
+$$ h_i = (\frac{1}{n}) + \frac{(x_i + \bar{x} )^2}{\sum_{i}^n (x_i - \bar{x})^2 }$$
+It is clear that $h_i$ increases with $x_i$'s distance from its sample mean $\bar{x}$, thus the higher the leverage statistic for an observation, that point can be removed from the analysis. Ofcourse this becomes problematic when the data itself is non-linear and can be fit by a linear regression.
+
+Finding out the highest leverage statistic is easy through the hatvalues function.
+
+```{r}
+plot(hatvalues(lm.fit))
+which.max(hatvalues(lm.fit))
+
+```
+Thus we can see that the 375'th observation has the highest Leverage statistics. 
+
+
+##Multiple Linear Regression
+```{r}
+lm.fit = lm(medv~lstat + age, data = Boston)
+summary(lm.fit)
+```
+
+We can even use all the predictors in the data set.
+```{r}
+lm.fit = lm(medv~. , data = Boston)
+summary(lm.fit)
+```
+
+
+WE can access all the components of the regression fit using the dollar operator on summary(). For example to access the fraction of the variance explained by the model, i.e. $R^2$ as below
+
+```{r}
+summary(lm.fit)$r.squared
+#OR
+summary(lm.fit)$r.sq
+```
+
+
+We can also access the Variation Inflation Factor (VIF) to detect colinarity among the different predictors.
+Mathematically, it is defined as :
+
+$$VIF (\hat{\beta_j}) = \frac{1}{1-R^2_{X_j | X_{-j}}}$$ 
+A VIF of greater than 5 or 10 can be problematic. Some of the solutions to colinear variables are:
+1. Dropouts 
+2. Average Standardized Versions, i.e. Coming two variables into one through some standardized averaging techniques. For eg.: Combine "limit" and "rating" to create "credit worthiness".
+
+```{r}
+#'car' lib has the function vif()
+
+vif(lm.fit)
+```
+
+
+From the above analysis, we can see that the variables age and indus have high p values and variables rad and tax seem to have higher than normal VIF. Let us just remove three variables age, indus and tax
+
+
+```{r}
+lm.fit <- lm(medv ~ . -age - indus -tax -rad , data = Boston)
+summary(lm.fit)
+```
+We can see that F statistic has slightly increased, i.e. the current model is explained greater variance in the data. 
+
+####Interaction Terms in the model. 
+
+```{r}
+summary(lm(medv ~lstat*age, data= Boston))
+```
+
+#### Non-linear Trasnformation of the predictors
+In other words we would perform a polynomial regression. You can literally fit an 'n' degree polynomial to a given data and it would start fitting the data well. Alas, it just leads to overfitting. 
+
+
+```{r}
+lm.fit2 = lm(medv~lstat + I(lstat^2))
+summary(lm.fit2)
+```
+You can notice a significant jump in the F statistic. 
+
+We can use anova() to further quantify the extent to which the quadratic fit is superior to the linear fit. 
+```{r}
+lm.fit <- lm(medv~ lstat)
+anova(lm.fit, lm.fit2)
+```
+Direct Quote from the book :
+
+"The anova() function performs a hypothesis test comparing the two models. The null hypothesis is that the two models fit the data equally well, and the alternative hypothesis is that the full model is superior. Here the F-statistic is 135 and the associated p-value is virtually zero. This provides very clear evidence that the model containing the predictors lstat and lstat2 is far superior to the model that only contains the predictor lstat. This is not surprising, since earlier we saw evidence for non-linearity in the relationship between medv and lstat"
+
+```{r}
+par(mfrow = c(2,2))
+plot(lm.fit2)
+```
+
+As noted earlier, we can fit any degree polynomial to the data and we can do that using the poly() function inside lm()
+```{r}
+lm.fit6 <- lm(medv~ poly(lstat, 6))
+summary(lm.fit6)
+```
+WE can even use other transformations like the log transformations and look at the model performance.
+
+```{r}
+summary(lm(medv~ log(rm), data = Boston))
+```
+ 
+ 
+==================================================================================================================================================================================================================
+
+####Qualitative Predictors
+We can load the Carseats dataset is part of the ISLR library. 
+
+It has a bunch of quant predictors but also has one qualitative predictor - "ShelveLoc" that records the shelf location of these carseats. It has three levels - Bad, good, medium. When we run qualitative variables in the lm(), R automatically creates dummy variables for these. 
+
+We can use contrasts() function to find the default for the ShelveLoc variable and can also tweak it to make our own.
+```{r}
+
+contrasts(Carseats$ShelveLoc)
+```
+Lets run our regression model and look at the output of such a qualitative variable. We have also thrown some interaction terms into the model. 
+
+```{r}
+lm.fit = lm(Sales~ . +Income:Advertising+ Price:Age, data = Carseats)
+summary(lm.fit)
+
+```
+
+
